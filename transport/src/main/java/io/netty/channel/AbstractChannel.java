@@ -47,7 +47,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
     private final Channel parent;
     private final ChannelId id;
     private final Unsafe unsafe;
-    private final DefaultChannelPipeline pipeline;
+    private final DefaultChannelPipeline pipeline; // 默认的 pipeline
     private final VoidChannelPromise unsafeVoidPromise = new VoidChannelPromise(this, false);
     private final CloseFuture closeFuture = new CloseFuture(this);
 
@@ -483,7 +483,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                     eventLoop.execute(new Runnable() {
                         @Override
                         public void run() {
-                            register0(promise);
+                            register0(promise); // 注册
                         }
                     });
                 } catch (Throwable t) {
@@ -505,16 +505,21 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                     return;
                 }
                 boolean firstRegistration = neverRegistered;
+                // 1.调用 JDK 底层注册 Selector > 看源码 io.netty.channel.nio.AbstractNioChannel.doRegister
                 doRegister();
                 neverRegistered = false;
                 registered = true;
 
+                // 2.回调 handleAdded 事件
                 // Ensure we call handlerAdded(...) before we actually notify the promise. This is needed as the
                 // user may already fire events through the pipeline in the ChannelFutureListener.
                 pipeline.invokeHandlerAddedIfNeeded();
 
                 safeSetSuccess(promise);
+
+                // 3.传播 ChannelRegistered 事件
                 pipeline.fireChannelRegistered();
+
                 // Only fire a channelActive if the channel has never been registered. This prevents firing
                 // multiple channel actives if the channel is deregistered and re-registered.
                 if (isActive()) {
@@ -559,7 +564,8 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             boolean wasActive = isActive();
             try {
-                doBind(localAddress);
+                // 这里已经把 ServerSocketChannel 绑定了端口号
+                doBind(localAddress); // io.netty.channel.socket.nio.NioServerSocketChannel.doBind
             } catch (Throwable t) {
                 safeSetFailure(promise, t);
                 closeIfClosed();

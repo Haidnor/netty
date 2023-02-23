@@ -163,7 +163,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
 
                     allocHandle.incMessagesRead(1);
                     readPending = false;
-                    pipeline.fireChannelRead(byteBuf);
+                    pipeline.fireChannelRead(byteBuf); // 触发 pipeline 进入读事件
                     byteBuf = null;
                 } while (allocHandle.continueReading());
 

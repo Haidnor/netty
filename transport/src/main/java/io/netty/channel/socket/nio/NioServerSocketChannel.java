@@ -133,7 +133,7 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
     protected SocketAddress localAddress0() {
         return SocketUtils.localSocketAddress(javaChannel().socket());
     }
-
+    // 这里是关键代码
     @SuppressJava6Requirement(reason = "Usage guarded by java version check")
     @Override
     protected void doBind(SocketAddress localAddress) throws Exception {

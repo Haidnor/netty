@@ -15,18 +15,7 @@
  */
 package io.netty.bootstrap;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelConfig;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ServerChannel;
+import io.netty.channel.*;
 import io.netty.util.AttributeKey;
 import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.logging.InternalLogger;
@@ -132,6 +121,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         setChannelOptions(channel, newOptionsArray(), logger);
         setAttributes(channel, newAttributesArray());
 
+        // 这里 ChannelPipeline 实例已经创建好了
         ChannelPipeline p = channel.pipeline();
 
         final EventLoopGroup currentChildGroup = childGroup;
@@ -139,20 +129,22 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         final Entry<ChannelOption<?>, Object>[] currentChildOptions = newOptionsArray(childOptions);
         final Entry<AttributeKey<?>, Object>[] currentChildAttrs = newAttributesArray(childAttrs);
 
+        // 配置服务端启动逻辑
         p.addLast(new ChannelInitializer<Channel>() {
             @Override
             public void initChannel(final Channel ch) {
+                // 添加用户自定义的 Handle
                 final ChannelPipeline pipeline = ch.pipeline();
                 ChannelHandler handler = config.handler();
                 if (handler != null) {
                     pipeline.addLast(handler);
                 }
-
+                // 添加一个特殊的 Handle, 用于接收新的连接
                 ch.eventLoop().execute(new Runnable() {
                     @Override
                     public void run() {
-                        pipeline.addLast(new ServerBootstrapAcceptor(
-                                ch, currentChildGroup, currentChildHandler, currentChildOptions, currentChildAttrs));
+                        // ServerBootstrapAcceptor 是一个接入器,接受新请求,把新请求传递给某个事件循环器
+                        pipeline.addLast(new ServerBootstrapAcceptor(ch, currentChildGroup, currentChildHandler, currentChildOptions, currentChildAttrs));
                     }
                 });
             }

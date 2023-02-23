@@ -55,7 +55,9 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     private static final Map.Entry<ChannelOption<?>, Object>[] EMPTY_OPTION_ARRAY = new Map.Entry[0];
     @SuppressWarnings("unchecked")
     private static final Map.Entry<AttributeKey<?>, Object>[] EMPTY_ATTRIBUTE_ARRAY = new Map.Entry[0];
-
+    /**
+     * boss 线程组, 用于处理连接
+     */
     volatile EventLoopGroup group;
     @SuppressWarnings("deprecation")
     private volatile ChannelFactory<? extends C> channelFactory;
@@ -269,16 +271,28 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     private ChannelFuture doBind(final SocketAddress localAddress) {
-        final ChannelFuture regFuture = initAndRegister();
+        /*
+            1.根据指定的类型反射newInstance()创建 Channel, 例如下列代码中指定的是 NioServerSocketChannel.class, 则创建的类型就是 NioServerSocketChannel
+            bootstrap.group(boosGroup, workerGroup)
+                .channel(NioServerSocketChannel.class)
+
+             2.从 channel 的 EventLoopGroup 中选择其中一个 EventLoop, 然后用 EventLoop 中的 Selector 注册到 channel 中
+         */
+        final ChannelFuture regFuture = initAndRegister(); // 这个方法很重要
         final Channel channel = regFuture.channel();
         if (regFuture.cause() != null) {
             return regFuture;
         }
-
+        // 下面注释的代码是我自己写的
+//        try {
+//            regFuture.sync();
+//        } catch (InterruptedException e) {
+//            throw new RuntimeException(e);
+//        }
         if (regFuture.isDone()) {
             // At this point we know that the registration was complete and successful.
             ChannelPromise promise = channel.newPromise();
-            doBind0(regFuture, channel, localAddress, promise);
+            doBind0(regFuture, channel, localAddress, promise); // 然后执行到这里了
             return promise;
         } else {
             // Registration future is almost always fulfilled already, but just in case it's not.
@@ -292,11 +306,13 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
                         // IllegalStateException once we try to access the EventLoop of the Channel.
                         promise.setFailure(cause);
                     } else {
+                        // 注册成功，所以设置正确的执行程序来使用。
                         // Registration was successful, so set the correct executor to use.
                         // See https://github.com/netty/netty/issues/2586
                         promise.registered();
 
-                        doBind0(regFuture, channel, localAddress, promise);
+                        // 然后执行到这里了
+                        doBind0(regFuture, channel, localAddress, promise); // 这个方法很很重要
                     }
                 }
             });
@@ -307,7 +323,15 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     final ChannelFuture initAndRegister() {
         Channel channel = null;
         try {
+            /*
+             根据指定的类型反射newInstance()创建 Channel.
+             例如下列代码中指定的是 NioServerSocketChannel.class, 则创建的类型就是 NioServerSocketChannel
+             bootstrap.group(boosGroup, workerGroup)
+                .channel(NioServerSocketChannel.class)
+             */
             channel = channelFactory.newChannel();
+
+            // 初始化 channel, 这里还有没有把 eventLoop 放到 channel 里面
             init(channel);
         } catch (Throwable t) {
             if (channel != null) {
@@ -320,7 +344,15 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
-        ChannelFuture regFuture = config().group().register(channel);
+        // 下面源码这里是链式调用的,不好debug,改一下
+        // ChannelFuture regFuture = config()
+        //         .group()
+        //         .register(channel);
+
+        AbstractBootstrapConfig<B, C> config = config();
+        EventLoopGroup loopGroup = config.group();
+        ChannelFuture regFuture = loopGroup.register(channel); // 从 EventLoopGroup 中选择其中一个 EventLoop, 然后用 EventLoop 中的 Selector 注册到 channel 中
+
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {
                 channel.close();
@@ -349,14 +381,18 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
         // This method is invoked before channelRegistered() is triggered.  Give user handlers a chance to set up
         // the pipeline in its channelRegistered() implementation.
-        channel.eventLoop().execute(new Runnable() {
+        EventLoop eventLoop = channel.eventLoop();
+        eventLoop.execute(new Runnable() {
             @Override
             public void run() {
+                System.out.println("--------------bind start");
                 if (regFuture.isSuccess()) {
-                    channel.bind(localAddress, promise).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
+                    ChannelFuture channelFuture = channel.bind(localAddress, promise); // 绑定方法
+                    channelFuture.addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
                 } else {
                     promise.setFailure(regFuture.cause());
                 }
+                System.out.println("--------------bind end");
             }
         });
     }

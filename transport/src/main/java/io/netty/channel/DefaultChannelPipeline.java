@@ -61,8 +61,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     private static final AtomicReferenceFieldUpdater<DefaultChannelPipeline, MessageSizeEstimator.Handle> ESTIMATOR =
             AtomicReferenceFieldUpdater.newUpdater(
                     DefaultChannelPipeline.class, MessageSizeEstimator.Handle.class, "estimatorHandle");
-    final HeadContext head;
-    final TailContext tail;
+    final HeadContext head; // 头节点
+    final TailContext tail; // 尾节点
 
     private final Channel channel;
     private final ChannelFuture succeededFuture;
@@ -970,7 +970,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
     @Override
     public final ChannelFuture bind(SocketAddress localAddress, ChannelPromise promise) {
-        return tail.bind(localAddress, promise);
+        return tail.bind(localAddress, promise);  // 从头节点开始传播 bind 事件
     }
 
     @Override
@@ -1004,10 +1004,13 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         tail.read();
         return this;
     }
-
+    /**
+     * 如果这样调用的话, 就是从最后一个节点向前执行 write() 操作
+     * ctx.channel().write(msg);
+     */
     @Override
     public final ChannelFuture write(Object msg) {
-        return tail.write(msg);
+        return tail.write(msg); // 找到节点的最后一个 handle
     }
 
     @Override
@@ -1019,10 +1022,12 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     public final ChannelFuture writeAndFlush(Object msg, ChannelPromise promise) {
         return tail.writeAndFlush(msg, promise);
     }
-
+    /**
+     * ctx.channel().writeAndFlush(msg);
+     */
     @Override
     public final ChannelFuture writeAndFlush(Object msg) {
-        return tail.writeAndFlush(msg);
+        return tail.writeAndFlush(msg); // 找到节点的最后一个 handle
     }
 
     @Override

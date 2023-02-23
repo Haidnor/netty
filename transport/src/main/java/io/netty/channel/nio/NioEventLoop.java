@@ -523,6 +523,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                         nextWakeupNanos.set(curDeadlineNanos);
                         try {
                             if (!hasTasks()) {
+                                /*
+                                 这里执行了 selector.select() 方法, 检测是否有新的连接, 此方法为阻塞方法
+                                 */
                                 strategy = select(curDeadlineNanos);
                             }
                         } finally {

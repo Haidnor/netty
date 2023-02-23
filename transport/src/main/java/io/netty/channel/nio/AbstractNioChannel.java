@@ -35,11 +35,7 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 
 import java.io.IOException;
 import java.net.SocketAddress;
-import java.nio.channels.CancelledKeyException;
-import java.nio.channels.ClosedChannelException;
-import java.nio.channels.ConnectionPendingException;
-import java.nio.channels.SelectableChannel;
-import java.nio.channels.SelectionKey;
+import java.nio.channels.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -377,7 +373,13 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         boolean selected = false;
         for (;;) {
             try {
-                selectionKey = javaChannel().register(eventLoop().unwrappedSelector(), 0, this);
+                // selectionKey = javaChannel().register(eventLoop().unwrappedSelector(), 0, this);
+
+                // 修改源码的链式调用,方便debug
+                SelectableChannel selectableChannel = javaChannel();
+                NioEventLoop eventLoop = eventLoop();
+                Selector selector = eventLoop.unwrappedSelector();
+                selectionKey = selectableChannel.register(selector, 0, this); // 这里已经把 selectionKey 创建出来了
                 return;
             } catch (CancelledKeyException e) {
                 if (!selected) {

@@ -83,7 +83,9 @@ public abstract class MultithreadEventLoopGroup extends MultithreadEventExecutor
 
     @Override
     public ChannelFuture register(Channel channel) {
-        return next().register(channel);
+        EventLoop next = next();
+        ChannelFuture channelFuture = next.register(channel);
+        return channelFuture;
     }
 
     @Override

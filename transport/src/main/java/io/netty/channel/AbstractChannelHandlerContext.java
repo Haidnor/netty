@@ -140,12 +140,13 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         return name;
     }
 
+    // 注册事件
     @Override
     public ChannelHandlerContext fireChannelRegistered() {
         invokeChannelRegistered(findContextInbound(MASK_CHANNEL_REGISTERED));
         return this;
     }
-
+    // 注册事件
     static void invokeChannelRegistered(final AbstractChannelHandlerContext next) {
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {
@@ -159,7 +160,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
             });
         }
     }
-
+    // 注册事件
     private void invokeChannelRegistered() {
         if (invokeHandler()) {
             try {
@@ -413,6 +414,11 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         return this;
     }
 
+    /**
+     * 这个方法的入口
+     * io.netty.channel.AbstractChannelHandlerContext#fireChannelRead(java.lang.Object)
+     * io.netty.channel.DefaultChannelPipeline#fireChannelRead(java.lang.Object)
+     */
     static void invokeChannelRead(final AbstractChannelHandlerContext next, Object msg) {
         final Object m = next.pipeline.touch(ObjectUtil.checkNotNull(msg, "msg"), next);
         EventExecutor executor = next.executor();
@@ -427,7 +433,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
             });
         }
     }
-
+    // 真正开始执行 ChannelInboundHandler 的 channelRead 方法
     private void invokeChannelRead(Object msg) {
         if (invokeHandler()) {
             try {
@@ -435,13 +441,14 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
                 // Duplex handlers implements both out/in interfaces causing a scalability issue
                 // see https://bugs.openjdk.org/browse/JDK-8180450
                 final ChannelHandler handler = handler();
-                final DefaultChannelPipeline.HeadContext headContext = pipeline.head;
-                if (handler == headContext) {
-                    headContext.channelRead(this, msg);
-                } else if (handler instanceof ChannelDuplexHandler) {
+                // 注意! DefaultChannelPipeline.HeadContext 这个类是每一个pipeline的默认头节点
+                final DefaultChannelPipeline.HeadContext headContext = pipeline.head; // 获取 pipeline 的头节点
+                if (handler == headContext) { // 判断如果当前节点是头节点
+                    headContext.channelRead(this, msg); // 第一次进入方法的时候会到这里, 进入这个方法后如何自己有写 InboundHandle 的话,会再次来到这个方法,并会进入到下面的判断
+                } else if (handler instanceof ChannelDuplexHandler) { // 第二次进此方法,如果下一个节点是双工处理器
                     ((ChannelDuplexHandler) handler).channelRead(this, msg);
                 } else {
-                    ((ChannelInboundHandler) handler).channelRead(this, msg);
+                    ((ChannelInboundHandler) handler).channelRead(this, msg); // 第二次进此方法,如果是ChannelInboundHandler就进入这里
                 }
             } catch (Throwable t) {
                 invokeExceptionCaught(t);
@@ -957,15 +964,15 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
             throw e;
         }
 
-        final AbstractChannelHandlerContext next = findContextOutbound(flush ?
-                (MASK_WRITE | MASK_FLUSH) : MASK_WRITE);
+        // outboundHandle 是向前找的
+        final AbstractChannelHandlerContext next = findContextOutbound(flush ? (MASK_WRITE | MASK_FLUSH) : MASK_WRITE);
         final Object m = pipeline.touch(msg, next);
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {
             if (flush) {
                 next.invokeWriteAndFlush(m, promise);
             } else {
-                next.invokeWrite(m, promise);
+                next.invokeWrite(m, promise);  // 写出数据
             }
         } else {
             final WriteTask task = WriteTask.newInstance(next, m, promise, flush);
@@ -979,6 +986,9 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         }
     }
 
+    /**
+     * ctx.writeAndFlush
+     */
     @Override
     public ChannelFuture writeAndFlush(Object msg) {
         return writeAndFlush(msg, newPromise());
@@ -1058,11 +1068,11 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         return ctx;
     }
 
-    private AbstractChannelHandlerContext findContextOutbound(int mask) {
+    private AbstractChannelHandlerContext  findContextOutbound(int mask) {
         AbstractChannelHandlerContext ctx = this;
         EventExecutor currentExecutor = executor();
         do {
-            ctx = ctx.prev;
+            ctx = ctx.prev; // outboundHandle 是向前找的
         } while (skipContext(ctx, currentExecutor, mask, MASK_ONLY_OUTBOUND));
         return ctx;
     }

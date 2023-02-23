@@ -15,8 +15,6 @@
  */
 package io.netty.util.concurrent;
 
-import static io.netty.util.internal.ObjectUtil.checkPositive;
-
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -25,6 +23,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static io.netty.util.internal.ObjectUtil.checkPositive;
 
 /**
  * Abstract base class for {@link EventExecutorGroup} implementations that handles their tasks with multiple threads at
@@ -81,7 +81,7 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
         for (int i = 0; i < nThreads; i ++) {
             boolean success = false;
             try {
-                children[i] = newChild(executor, args);
+                children[i] = newChild(executor, args);  // 创建 EventExecutor
                 success = true;
             } catch (Exception e) {
                 // TODO: Think about if this is a good exception type
